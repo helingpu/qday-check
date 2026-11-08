@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q-day Readiness Check</title>
+<meta name="description" content="A 3-minute self-assessment of your organisation's exposure to quantum attacks.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ---------- Brand tokens (QB style guide) ---------- */
+  :root {
+    --navy: #2e4e59;
+    --circuit: #4ca783;
+    --tangerine: #fc8a09;
+    --charcoal: #5d5d5c;
+    --gray: #e3e3e2;
+    --tint: #f4f4f3;
+    --white: #ffffff;
+    --critical: #c4442f; /* not in brand palette: used only for the Critical band */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    color: var(--charcoal);
+    background: var(--tint);
+    line-height: 1.5;
+  }
+  header {
+    background: var(--white);
+    border-bottom: 3px solid var(--navy);
+    padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .logo { height: 40px; width: auto; display: block; }
+  .tag { font-size: 12px; font-weight: 700; color: var(--circuit); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--gray);
+    border-radius: 10px;
+    padding: 32px;
+  }
+  h1 { color: var(--navy); font-size: 32px; margin: 0 0 12px; line-height: 1.2; }
+  h2 { color: var(--circuit); font-size: 20px; margin: 0 0 6px; display: inline-block; }
+  h2::after { content: ""; display: block; height: 3px; background: var(--tangerine); margin-top: 4px; }
+  .lead { font-size: 17px; }
+  .muted { font-size: 13px; color: #8a8a89; }
+  .btn {
+    font-family: inherit; font-weight: 700; font-size: 15px;
+    border: none; border-radius: 6px; padding: 12px 24px; cursor: pointer;
+    background: var(--navy); color: var(--white);
+  }
+  .btn:hover { background: #24404a; }
+  .btn.secondary { background: transparent; color: var(--navy); border: 2px solid var(--navy); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .hidden { display: none !important; }
+
+  /* ---------- Quiz ---------- */
+  .progress { height: 6px; background: var(--gray); border-radius: 3px; margin-bottom: 8px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--circuit); transition: width .3s; }
+  .step { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 20px; }
+  .question { font-size: 21px; font-weight: 700; color: var(--navy); margin: 0 0 6px; }
+  .hint { font-size: 14px; margin: 0 0 18px; }
+  .options { display: grid; gap: 10px; }
+  .option {
+    font-family: inherit; font-size: 15px; text-align: left;
+    background: var(--white); color: var(--charcoal);
+    border: 2px solid var(--gray); border-radius: 8px; padding: 14px 16px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .option:hover { border-color: var(--circuit); }
+  .option.selected { border-color: var(--circuit); background: #eef7f2; font-weight: 600; }
+  .nav { display: flex; justify-content: space-between; margin-top: 24px; }
+
+  /* ---------- Results ---------- */
+  .score-row { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  .score-circle {
+    width: 140px; height: 140px; border-radius: 50%; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--white);
+  }
+  .score-num { font-size: 48px; font-weight: 800; line-height: 1; }
+  .score-label { font-size: 13px; font-weight: 600; opacity: .9; }
+  .band { font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+  .headline { font-size: 22px; font-weight: 700; color: var(--navy); line-height: 1.35; margin: 4px 0 0; }
+  .mosca {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 28px 0;
+  }
+  .mosca div { background: var(--tint); border-radius: 8px; padding: 14px; text-align: center; }
+  .mosca b { display: block; font-size: 28px; color: var(--navy); }
+  .mosca span { font-size: 12px; }
+  .chart-wrap { position: relative; max-width: 460px; margin: 8px auto 24px; }
+  .recs { list-style: none; padding: 0; margin: 12px 0 0; counter-reset: rec; }
+  .recs li {
+    counter-increment: rec; position: relative;
+    padding: 14px 16px 14px 56px; border: 1px solid var(--gray); border-radius: 8px; margin-bottom: 10px;
+  }
+  .recs li::before {
+    content: counter(rec); position: absolute; left: 16px; top: 14px;
+    width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: var(--white);
+    font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center;
+  }
+  .recs strong { color: var(--circuit); }
+  .cta { background: var(--navy); color: var(--white); border-radius: 10px; padding: 24px; margin-top: 28px; }
+  .cta h3 { margin: 0 0 6px; font-size: 18px; }
+  .cta a.btn { display: inline-block; text-decoration: none; background: var(--tangerine); margin-top: 12px; }
+  .section { margin-top: 32px; }
+  footer { text-align: center; font-size: 12px; color: #8a8a89; padding: 0 16px 32px; }
+
+  @media (max-width: 560px) {
+    .card { padding: 22px; }
+    h1 { font-size: 26px; }
+    .score-circle { width: 110px; height: 110px; }
+    .score-num { font-size: 38px; }
+    .mosca b { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.png" alt="Quantum Bridge" class="logo">
+  <div class="tag">Q-day Readiness Check</div>
+</header>
+
+<main>
+  <!-- ===== Screen 1: Intro ===== -->
+  <section id="intro" class="card">
+    <h1>Is your data already exposed to quantum attacks?</h1>
+    <p class="lead">Attackers can record encrypted data today and decrypt it once a quantum computer is powerful enough. That day is called <b>Q-day</b>.</p>
+    <p>Answer 10 questions to see your exposure score, where your risk sits, and three things to do next. It takes about 3 minutes.</p>
+    <button class="btn" id="startBtn">Start the check</button>
+    <p class="muted" style="margin-top:20px">Your answers stay in your browser. Nothing is stored or sent.</p>
+  </section>
+
+  <!-- ===== Screen 2: Quiz ===== -->
+  <section id="quiz" class="card hidden">
+    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="step" id="stepLabel"></div>
+    <p class="question" id="questionText"></p>
+    <p class="hint" id="questionHint"></p>
+    <div class="options" id="options"></div>
+    <div class="nav">
+      <button class="btn secondary" id="backBtn">Back</button>
+      <button class="btn" id="nextBtn" disabled>Next</button>
+    </div>
+  </section>
+
+  <!-- ===== Screen 3: Results ===== -->
+  <section id="results" class="card hidden">
+    <div class="score-row">
+      <div class="score-circle" id="scoreCircle">
+        <div class="score-num" id="scoreNum">0</div>
+        <div class="score-label">out of 100</div>
+      </div>
+      <div style="flex:1; min-width:240px">
+        <div class="band" id="bandLabel"></div>
+        <p class="headline" id="headline"></p>
+      </div>
+    </div>
+
+    <div class="mosca">
+      <div><b id="xVal"></b><span>years data must stay secret</span></div>
+      <div><b id="yVal"></b><span>years to migrate</span></div>
+      <div><b id="zVal"></b><span>years to Q-day (assumed)</span></div>
+    </div>
+
+    <div class="section">
+      <h2>Where your risk sits</h2>
+      <p class="muted">Higher means more exposed.</p>
+      <div class="chart-wrap"><canvas id="radar"></canvas></div>
+    </div>
+
+    <div class="section">
+      <h2>Your next three moves</h2>
+      <ol class="recs" id="recs"></ol>
+      <p id="sectorNote"></p>
+    </div>
+
+    <div class="cta">
+      <h3>Want to close the gap faster?</h3>
+      <p style="margin:0">Quantum Bridge protects the links that carry your most sensitive data, with quantum-safe key distribution you can deploy on today's networks.</p>
+      <!-- TODO: point to the official QB contact page -->
+      <a class="btn" href="https://www.quantumbridgetech.com" target="_blank" rel="noopener">Talk to Quantum Bridge</a>
+    </div>
+
+    <div style="margin-top:24px; text-align:center">
+      <button class="btn secondary" id="restartBtn">Retake the check</button>
+    </div>
+  </section>
+</main>
+
+<footer>Indicative self-assessment only, not a security audit. © 2026 Quantum Bridge Technologies.</footer>
+
+<script>
+/* =====================================================================
+   1. BUSINESS RULES (edit these, the rest of the code follows)
+   ===================================================================== */
+
+// Years until Q-day. A planning assumption, not a prediction.
+const QDAY_YEARS = 7;
+
+// The five radar dimensions and their weight in the overall score.
+const DIMENSIONS = {
+  exposure:   { label: 'Data Exposure',     weight: 0.30 },
+  visibility: { label: 'Crypto Visibility', weight: 0.20 },
+  agility:    { label: 'Crypto Agility',    weight: 0.20 },
+  supply:     { label: 'Supply Chain',      weight: 0.15 },
+  governance: { label: 'Governance',        weight: 0.15 },
+};
+
+// Each option has a risk score from 0 (safe) to 100 (most exposed).
+// `years` feeds the Mosca calculation (X = shelf life, Y = migration time).
+const QUESTIONS = [
+  {
+    id: 'sector', dim: null,
+    text: 'Which sector are you in?',
+    hint: 'Used to tailor the advice. Not scored.',
+    options: [
+      { label: 'Banking & payments', value: 'finance' },
+      { label: 'Telecommunications', value: 'telco' },
+      { label: 'Government & defence', value: 'gov' },
+      { label: 'Other critical infrastructure', value: 'other' },
+    ],
+  },
+  {
+    id: 'shelfLife', dim: 'exposure', mosca: 'X',
+    text: 'How long must your most sensitive data stay confidential?',
+    hint: 'Think customer records, state secrets, long-term contracts, root keys.',
+    options: [
+      { label: 'Under 2 years', risk: 0,   years: 1 },
+      { label: '2 to 5 years',  risk: 25,  years: 3.5 },
+      { label: '5 to 10 years', risk: 50,  years: 7.5 },
+      { label: '10 to 20 years', risk: 80, years: 15 },
+      { label: '20+ years',     risk: 100, years: 25 },
+    ],
+  },
+  {
+    id: 'network', dim: 'exposure',
+    text: "How much of your sensitive traffic crosses networks you don't fully control?",
+    hint: 'Carrier links, inter-data-centre fibre, internet VPNs.',
+    options: [
+      { label: 'Very little', risk: 10 },
+      { label: 'Some',        risk: 40 },
+      { label: 'Most of it',  risk: 80 },
+      { label: 'Not sure',    risk: 90 },
+    ],
+  },
+  {
+    id: 'inventory', dim: 'visibility',
+    text: 'Do you have an inventory of where cryptography is used across your systems?',
+    hint: 'Sometimes called a cryptographic bill of materials (CBOM).',
+    options: [
+      { label: 'No inventory', risk: 100 },
+      { label: 'Partial, manual list', risk: 65 },
+      { label: 'Automated discovery for critical systems', risk: 30 },
+      { label: 'Complete and continuously maintained', risk: 5 },
+    ],
+  },
+  {
+    id: 'algorithms', dim: 'visibility',
+    text: 'What protects your key exchange and digital signatures today?',
+    hint: '',
+    options: [
+      { label: 'Classical only (RSA / ECC)', risk: 85 },
+      { label: 'Classical, with post-quantum pilots under way', risk: 55 },
+      { label: 'Hybrid post-quantum in production for some systems', risk: 25 },
+      { label: 'Not sure', risk: 100 },
+    ],
+  },
+  {
+    id: 'swap', dim: 'agility',
+    text: 'If an algorithm were broken tomorrow, how would you replace it?',
+    hint: '',
+    options: [
+      { label: "It's hard-coded in many applications", risk: 100 },
+      { label: 'System by system, manually', risk: 70 },
+      { label: 'Centrally, through our PKI / HSM / KMS', risk: 35 },
+      { label: 'Policy-driven, within weeks', risk: 10 },
+    ],
+  },
+  {
+    id: 'migration', dim: 'agility', mosca: 'Y',
+    text: 'How long would it take to migrate your critical systems to quantum-safe cryptography?',
+    hint: 'Your best estimate is fine.',
+    options: [
+      { label: 'Under 2 years', risk: 15,  years: 1.5 },
+      { label: '2 to 4 years',  risk: 40,  years: 3 },
+      { label: '5 to 7 years',  risk: 70,  years: 6 },
+      { label: '8+ years',      risk: 90,  years: 9 },
+      { label: "We don't know", risk: 100, years: 8 },
+    ],
+  },
+  {
+    id: 'vendors', dim: 'supply',
+    text: 'Have your critical vendors shared a quantum-safe roadmap?',
+    hint: 'HSM, VPN, network equipment, core platforms.',
+    options: [
+      { label: "We haven't asked", risk: 100 },
+      { label: 'Asked, few have answered', risk: 65 },
+      { label: 'Most have roadmaps', risk: 35 },
+      { label: "It's written into our contracts and RFPs", risk: 10 },
+    ],
+  },
+  {
+    id: 'owner', dim: 'governance',
+    text: 'Who owns quantum-safe migration in your organisation?',
+    hint: '',
+    options: [
+      { label: 'No one yet', risk: 100 },
+      { label: "It's discussed, but no owner", risk: 75 },
+      { label: 'Named owner, no budget', risk: 45 },
+      { label: 'Named owner with a funded programme', risk: 10 },
+    ],
+  },
+  {
+    id: 'roadmap', dim: 'governance',
+    text: 'Where is your quantum-safe roadmap today?',
+    hint: '',
+    options: [
+      { label: 'No roadmap', risk: 100 },
+      { label: 'Awareness stage', risk: 75 },
+      { label: 'Plan drafted', risk: 40 },
+      { label: 'Plan with milestones, in execution', risk: 10 },
+    ],
+  },
+];
+
+// Score bands, checked from the top.
+const BANDS = [
+  { min: 70, name: 'Critical exposure', color: 'var(--critical)' },
+  { min: 50, name: 'High exposure',     color: 'var(--tangerine)' },
+  { min: 30, name: 'Moderate exposure', color: 'var(--navy)' },
+  { min: 0,  name: 'Well prepared',     color: 'var(--circuit)' },
+];
+
+// One recommendation per dimension. The three riskiest dimensions are shown.
+const RECOMMENDATIONS = {
+  exposure:   ['Protect your highest-value links now.', 'Data captured today can be decrypted later, so start with the connections carrying long-lived secrets.'],
+  visibility: ['Build a cryptographic inventory.', "Map the cryptography in your critical systems within 90 days. You can't migrate what you can't see."],
+  agility:    ['Make algorithms swappable.', 'Move algorithm choices out of application code and into central PKI / KMS policy, so the next change takes weeks, not years.'],
+  supply:     ['Put your vendors on the clock.', 'Add quantum-safe requirements to every new RFP and ask your top 10 vendors for their roadmap this quarter.'],
+  governance: ['Name one accountable owner.', "Give quantum-safe migration a single owner and a budget, and tie the roadmap to your regulator's deadline."],
+};
+
+// TODO (SE/CTO to verify before external use): sector-specific deadlines.
+const SECTOR_NOTES = {
+  finance: 'Financial regulators increasingly expect a quantum-safe transition plan, and NIST plans to deprecate RSA and ECC from 2030.',
+  telco:   'Carrier networks have long equipment lifecycles, so hardware bought today will still be running after Q-day. NIST plans to deprecate RSA and ECC from 2030.',
+  gov:     'Government roadmaps in North America and the EU target high-priority systems around 2030 to 2031, with full migration by 2035.',
+  other:   'NIST plans to deprecate RSA and ECC from 2030 and disallow them by 2035. Long-lived infrastructure needs to start now.',
+};
+
+/* =====================================================================
+   2. STATE: remembers where the user is and what they picked
+   ===================================================================== */
+const state = {
+  current: 0,     // index of the question on screen
+  answers: {},    // { questionId: optionIndex }
+};
+
+/* =====================================================================
+   3. SCORING: the business rules above, turned into numbers
+   ===================================================================== */
+function calculate() {
+  // 3a. Average risk per dimension
+  const dimScores = {};
+  for (const key in DIMENSIONS) {
+    const qs = QUESTIONS.filter(q => q.dim === key);
+    const total = qs.reduce((sum, q) => sum + q.options[state.answers[q.id]].risk, 0);
+    dimScores[key] = Math.round(total / qs.length);
+  }
+
+  // 3b. Weighted overall score
+  let overall = 0;
+  for (const key in DIMENSIONS) overall += dimScores[key] * DIMENSIONS[key].weight;
+  overall = Math.round(overall);
+
+  // 3c. Mosca rule: if X + Y > Z, you are already exposed -> floor at 70
+  const pick = tag => { const q = QUESTIONS.find(q => q.mosca === tag); return q.options[state.answers[q.id]].years; };
+  const X = pick('X'), Y = pick('Y'), Z = QDAY_YEARS;
+  const gap = X + Y - Z;
+  if (gap > 0) overall = Math.max(overall, 70);
+
+  // 3d. Band and top three recommendations
+  const band = BANDS.find(b => overall >= b.min);
+  const top3 = Object.keys(dimScores).sort((a, b) => dimScores[b] - dimScores[a]).slice(0, 3);
+
+  return { dimScores, overall, X, Y, Z, gap, band, top3 };
+}
+
+/* =====================================================================
+   4. SCREENS
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+function show(id) {
+  ['intro', 'quiz', 'results'].forEach(s => $(s).classList.toggle('hidden', s !== id));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderQuestion() {
+  const q = QUESTIONS[state.current];
+  $('progressBar').style.width = ((state.current) / QUESTIONS.length * 100) + '%';
+  $('stepLabel').textContent = `Question ${state.current + 1} of ${QUESTIONS.length}`;
+  $('questionText').textContent = q.text;
+  $('questionHint').textContent = q.hint;
+  $('options').innerHTML = '';
+  q.options.forEach((opt, i) => {
+    const b = document.createElement('button');
+    b.className = 'option' + (state.answers[q.id] === i ? ' selected' : '');
+    b.textContent = opt.label;
+    b.onclick = () => {
+      state.answers[q.id] = i;
+      renderQuestion();
+      // auto-advance after a short pause, unless the user already moved on
+      const here = state.current;
+      setTimeout(() => { if (state.current === here && !$('quiz').classList.contains('hidden')) next(); }, 250);
+    };
+    $('options').appendChild(b);
+  });
+  $('backBtn').style.visibility = state.current === 0 ? 'hidden' : 'visible';
+  $('nextBtn').disabled = state.answers[q.id] === undefined;
+  $('nextBtn').textContent = state.current === QUESTIONS.length - 1 ? 'See my results' : 'Next';
+}
+
+function next() {
+  if (state.answers[QUESTIONS[state.current].id] === undefined) return;
+  if (state.current < QUESTIONS.length - 1) { state.current++; renderQuestion(); }
+  else renderResults();
+}
+
+const fmtYears = n => (Number.isInteger(n) ? n : n.toFixed(1)).toString();
+let chart;
+
+function renderResults() {
+  const r = calculate();
+  show('results');
+
+  $('scoreCircle').style.background = r.band.color;
+  $('bandLabel').textContent = r.band.name;
+  $('bandLabel').style.color = r.band.color;
+  animateNumber($('scoreNum'), r.overall);
+
+  $('headline').textContent = r.gap > 0
+    ? `Your data needs to stay secret for ${fmtYears(r.X)} years. Migration will take you ${fmtYears(r.Y)}. Q-day may arrive in ${r.Z}. You are ${fmtYears(r.gap)} years behind.`
+    : `Your data needs to stay secret for ${fmtYears(r.X)} years and migration will take ${fmtYears(r.Y)}. With Q-day ~${r.Z} years out, you have ${fmtYears(-r.gap)} years of margin. Use it.`;
+  $('xVal').textContent = fmtYears(r.X);
+  $('yVal').textContent = fmtYears(r.Y);
+  $('zVal').textContent = r.Z;
+
+  // Recommendations
+  $('recs').innerHTML = r.top3.map(k =>
+    `<li><strong>${RECOMMENDATIONS[k][0]}</strong> ${RECOMMENDATIONS[k][1]}</li>`).join('');
+  $('sectorNote').innerHTML = `<span class="muted">${SECTOR_NOTES[QUESTIONS[0].options[state.answers.sector].value]}</span>`;
+
+  // Radar chart
+  if (chart) chart.destroy();
+  chart = new Chart($('radar'), {
+    type: 'radar',
+    data: {
+      labels: Object.values(DIMENSIONS).map(d => d.label),
+      datasets: [{
+        label: 'Your risk',
+        data: Object.keys(DIMENSIONS).map(k => r.dimScores[k]),
+        backgroundColor: 'rgba(252, 138, 9, 0.22)',
+        borderColor: '#fc8a09',
+        pointBackgroundColor: '#fc8a09',
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0, max: 100,
+          ticks: { stepSize: 25, display: false },
+          grid: { color: '#e3e3e2' },
+          angleLines: { color: '#e3e3e2' },
+          pointLabels: { font: { family: 'Montserrat', size: 13, weight: '600' }, color: '#2e4e59' },
+        },
+      },
+    },
+  });
+}
+
+function animateNumber(el, target) {
+  const start = performance.now();
+  (function tick(now) {
+    const t = Math.min((now - start) / 900, 1);
+    el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
+    if (t < 1) requestAnimationFrame(tick);
+  })(start);
+}
+
+/* =====================================================================
+   5. WIRING
+   ===================================================================== */
+$('startBtn').onclick = () => { state.current = 0; show('quiz'); renderQuestion(); };
+$('backBtn').onclick = () => { if (state.current > 0) { state.current--; renderQuestion(); } };
+$('nextBtn').onclick = next;
+$('restartBtn').onclick = () => { state.answers = {}; state.current = 0; show('intro'); };
+</script>
+</body>
+</html>
